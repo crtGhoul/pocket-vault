@@ -251,7 +251,11 @@ function renderSpaces() {
     title.textContent = space.name;
     const sub = document.createElement('span');
     sub.className = 'muted';
-    sub.textContent = space.tag || new URL(space.url).hostname;
+    let host = space.url;
+    try {
+      host = new URL(space.url).hostname;
+    } catch {}
+    sub.textContent = space.tag || host;
     link.append(title, sub);
 
     const del = document.createElement('button');
