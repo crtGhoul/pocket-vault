@@ -19,12 +19,26 @@ import {
 } from './db.js';
 
 const DEFAULT_SPACES = [
-  { name: 'WhatsApp Web', url: 'https://web.whatsapp.com', tag: 'Messaging' },
-  { name: 'Instagram', url: 'https://www.instagram.com', tag: 'Social' },
-  { name: 'Telegram', url: 'https://web.telegram.org', tag: 'Messaging' },
-  { name: 'Gmail', url: 'https://mail.google.com', tag: 'Mail' },
-  { name: 'X', url: 'https://x.com', tag: 'Social' }
+  { name: 'WhatsApp Web', url: 'https://web.whatsapp.com', tag: 'Messaging', pinned: false, order: 0 },
+  { name: 'Instagram', url: 'https://www.instagram.com', tag: 'Social', pinned: false, order: 1 },
+  { name: 'Telegram', url: 'https://web.telegram.org', tag: 'Messaging', pinned: false, order: 2 },
+  { name: 'Gmail', url: 'https://mail.google.com', tag: 'Mail', pinned: false, order: 3 },
+  { name: 'X', url: 'https://x.com', tag: 'Social', pinned: false, order: 4 }
 ];
+
+const TRACKING_PARAMS = new Set([
+  'fbclid',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'mc_cid',
+  'mc_eid',
+  'igshid',
+  'si',
+  '_hsenc',
+  '_hsmi',
+  'ref_src'
+]);
 
 const state = {
   key: null,
@@ -34,8 +48,11 @@ const state = {
   files: [],
   notes: [],
   contacts: [],
+  activeTag: 'All',
+  activeSpaceMenuId: null,
   previewUrl: null,
-  hiddenAt: null
+  hiddenAt: null,
+  toastTimer: null
 };
 
 const $ = (id) => document.getElementById(id);
@@ -220,58 +237,257 @@ function switchTab(tab) {
   }
 }
 
+function sanitizeLaunchUrl(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return { ok: false, error: 'Enter a URL.' };
+  const candidate = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let parsed;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return { ok: false, error: 'Enter a valid web URL.' };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { ok: false, error: 'Only http:// and https:// URLs are allowed.' };
+  }
+  for (const key of Array.from(parsed.searchParams.keys())) {
+    if (key.startsWith('utm_') || TRACKING_PARAMS.has(key)) {
+      parsed.searchParams.delete(key);
+    }
+  }
+  return { ok: true, url: parsed.toString(), host: parsed.hostname };
+}
+
+function faviconUrl(url) {
+  try {
+    const { hostname } = new URL(url);
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`;
+  } catch {
+    return '';
+  }
+}
+
+function sortSpaces(spaces) {
+  return [...spaces].sort((a, b) => {
+    const pinDiff = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+    if (pinDiff !== 0) return pinDiff;
+    const orderA = typeof a.order === 'number' ? a.order : Number.MAX_SAFE_INTEGER;
+    const orderB = typeof b.order === 'number' ? b.order : Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) return orderA - orderB;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
+function showToast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => {
+    el.hidden = true;
+  }, 2200);
+}
+
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function createTileIcon(space, cleanUrl) {
+  const src = faviconUrl(cleanUrl);
+  const initial = (space.name || '?').trim().charAt(0).toUpperCase() || '?';
+  const makeFallback = () => {
+    const badge = document.createElement('span');
+    badge.className = 'tile-icon-fallback';
+    badge.setAttribute('aria-hidden', 'true');
+    badge.textContent = initial;
+    return badge;
+  };
+  if (!src) return makeFallback();
+
+  const img = document.createElement('img');
+  img.className = 'tile-icon';
+  img.src = src;
+  img.alt = '';
+  img.width = 44;
+  img.height = 44;
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.addEventListener('error', () => {
+    img.replaceWith(makeFallback());
+  });
+  return img;
+}
+
+function renderSpaceChips() {
+  const chips = $('spaces-chips');
+  chips.replaceChildren();
+  const tags = Array.from(
+    new Set(state.spaces.map((s) => (s.tag || '').trim()).filter(Boolean))
+  );
+  if (!tags.length) {
+    state.activeTag = 'All';
+    chips.hidden = true;
+    return;
+  }
+  if (state.activeTag !== 'All' && !tags.includes(state.activeTag)) {
+    state.activeTag = 'All';
+  }
+  chips.hidden = false;
+  for (const tag of ['All', ...tags]) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `section-chip${state.activeTag === tag ? ' is-active' : ''}`;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', String(state.activeTag === tag));
+    btn.textContent = tag;
+    btn.addEventListener('click', () => {
+      state.activeTag = tag;
+      renderSpaces();
+    });
+    chips.append(btn);
+  }
+}
+
 function renderSpaces() {
+  state.spaces = sortSpaces(state.spaces);
+  renderSpaceChips();
+
+  const searchInput = $('spaces-search');
+  const showSearch = state.spaces.length > 6;
+  searchInput.hidden = !showSearch;
+  if (!showSearch && searchInput.value) searchInput.value = '';
+  const query = showSearch ? searchInput.value.trim().toLowerCase() : '';
+
+  const filtered = state.spaces.filter((s) => {
+    const tagMatch = state.activeTag === 'All' || (s.tag || '').trim() === state.activeTag;
+    const queryMatch =
+      !query ||
+      s.name.toLowerCase().includes(query) ||
+      s.url.toLowerCase().includes(query) ||
+      (s.tag || '').toLowerCase().includes(query);
+    return tagMatch && queryMatch;
+  });
+
   const list = $('spaces-list');
   list.replaceChildren();
-  if (!state.spaces.length) {
+  if (!filtered.length) {
     const empty = document.createElement('p');
     empty.className = 'empty-state';
-    empty.textContent = 'No spaces yet. Add a web app link to launch from here.';
+    empty.style.gridColumn = '1 / -1';
+    empty.textContent = state.spaces.length
+      ? 'No matching spaces.'
+      : 'No spaces yet. Add a web app link to launch from here.';
     list.append(empty);
     return;
   }
 
-  for (const space of state.spaces) {
-    const card = document.createElement('div');
-    card.className = 'card space-card';
+  for (const space of filtered) {
+    const sanitized = sanitizeLaunchUrl(space.url);
+    const cleanUrl = sanitized.ok ? sanitized.url : '#';
+    const host = sanitized.ok ? sanitized.host : space.url;
+
+    const tile = document.createElement('div');
+    tile.className = 'space-tile';
+
+    if (space.pinned) {
+      const pin = document.createElement('span');
+      pin.className = 'tile-pin';
+      pin.setAttribute('aria-hidden', 'true');
+      tile.append(pin);
+    }
 
     const link = document.createElement('a');
-    link.className = 'space-link';
-    link.href = space.url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
+    link.className = 'tile-launch';
+    link.href = cleanUrl;
+    if (sanitized.ok) {
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    } else {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        openSpaceDialog(space);
+      });
+    }
 
-    const title = document.createElement('strong');
+    const icon = createTileIcon(space, cleanUrl);
+    const title = document.createElement('span');
+    title.className = 'tile-label';
     title.textContent = space.name;
     const sub = document.createElement('span');
-    sub.className = 'muted';
-    let host = space.url;
-    try {
-      host = new URL(space.url).hostname;
-    } catch {}
+    sub.className = 'tile-sub';
     sub.textContent = space.tag || host;
-    link.append(title, sub);
+    link.append(icon, title, sub);
 
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'icon-btn danger';
-    del.setAttribute('aria-label', `Remove ${space.name}`);
-    del.textContent = '×';
-    del.addEventListener('click', async () => {
-      await deleteItem(space.id);
-      state.spaces = state.spaces.filter((s) => s.id !== space.id);
-      renderSpaces();
-    });
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'tile-more';
+    more.setAttribute('aria-label', `Options for ${space.name}`);
+    more.textContent = '⋯';
+    more.addEventListener('click', () => openSpaceMenu(space.id));
 
-    card.append(link, del);
-    list.append(card);
+    tile.append(link, more);
+    list.append(tile);
   }
+}
+
+function openSpaceDialog(space = null) {
+  $('space-error').hidden = true;
+  $('space-error').textContent = '';
+  $('space-id').value = space ? space.id : '';
+  $('space-dialog-title').textContent = space ? 'Edit space' : 'Add space';
+  $('space-name').value = space ? space.name : '';
+  $('space-url').value = space ? space.url : '';
+  $('space-tag').value = space ? space.tag || '' : '';
+  $('space-dialog').showModal();
+}
+
+function getSpaceGroup(space) {
+  return state.spaces.filter((s) => Boolean(s.pinned) === Boolean(space.pinned));
+}
+
+function openSpaceMenu(id) {
+  const space = state.spaces.find((s) => s.id === id);
+  if (!space) return;
+  state.activeSpaceMenuId = id;
+  $('space-menu-title').textContent = space.name;
+  $('menu-pin-btn').textContent = space.pinned ? 'Unpin' : 'Pin';
+
+  const group = getSpaceGroup(space);
+  const idx = group.findIndex((s) => s.id === id);
+  $('menu-left-btn').disabled = idx <= 0;
+  $('menu-right-btn').disabled = idx < 0 || idx >= group.length - 1;
+
+  $('space-menu').showModal();
+}
+
+async function moveActiveSpace(delta) {
+  const space = state.spaces.find((s) => s.id === state.activeSpaceMenuId);
+  if (!space) return;
+  const group = getSpaceGroup(space);
+  const idx = group.findIndex((s) => s.id === space.id);
+  const targetIdx = idx + delta;
+  if (idx < 0 || targetIdx < 0 || targetIdx >= group.length) return;
+
+  const normalized = group.map((item, i) => ({ ...item, order: i }));
+  const [moved] = normalized.splice(idx, 1);
+  normalized.splice(targetIdx, 0, moved);
+
+  await Promise.all(
+    normalized.map((item, i) => {
+      item.order = i;
+      const { id, updatedAt, ...plain } = item;
+      return saveEncryptedItem('space', plain, id).then(() => {
+        item.updatedAt = Date.now();
+      });
+    })
+  );
+
+  const byId = new Map(normalized.map((item) => [item.id, item]));
+  state.spaces = state.spaces.map((s) => byId.get(s.id) || s);
+  renderSpaces();
+  openSpaceMenu(space.id);
 }
 
 function renderFiles() {
@@ -564,24 +780,116 @@ function bindEvents() {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   }
 
-  $('add-space-btn').addEventListener('click', () => {
-    $('space-form').reset();
-    $('space-dialog').showModal();
-  });
+  $('add-space-btn').addEventListener('click', () => openSpaceDialog());
+  $('spaces-search').addEventListener('input', renderSpaces);
 
   $('space-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const id = $('space-id').value || null;
     const name = $('space-name').value.trim();
-    let url = $('space-url').value.trim();
     const tag = $('space-tag').value.trim();
-    if (!name || !url) return;
-    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    const sanitized = sanitizeLaunchUrl($('space-url').value);
+    const errEl = $('space-error');
 
-    const item = { name, url, tag };
-    const id = await saveEncryptedItem('space', item);
-    state.spaces.unshift({ id, updatedAt: Date.now(), ...item });
+    if (!name) {
+      errEl.textContent = 'Enter a space name.';
+      errEl.hidden = false;
+      return;
+    }
+    if (!sanitized.ok) {
+      errEl.textContent = sanitized.error;
+      errEl.hidden = false;
+      return;
+    }
+    errEl.hidden = true;
+
+    const existing = id ? state.spaces.find((s) => s.id === id) : null;
+    const item = {
+      name,
+      url: sanitized.url,
+      tag,
+      pinned: existing ? Boolean(existing.pinned) : false,
+      order: existing && typeof existing.order === 'number' ? existing.order : state.spaces.length
+    };
+    const savedId = await saveEncryptedItem('space', item, id);
+    if (id) {
+      state.spaces = state.spaces.map((s) =>
+        s.id === id ? { id, updatedAt: Date.now(), ...item } : s
+      );
+    } else {
+      state.spaces.push({ id: savedId, updatedAt: Date.now(), ...item });
+    }
     renderSpaces();
     $('space-dialog').close();
+    showToast(id ? 'Space updated' : 'Space added');
+  });
+
+  $('menu-open-btn').addEventListener('click', () => {
+    const space = state.spaces.find((s) => s.id === state.activeSpaceMenuId);
+    $('space-menu').close();
+    if (!space) return;
+    const sanitized = sanitizeLaunchUrl(space.url);
+    if (sanitized.ok) {
+      window.open(sanitized.url, '_blank', 'noopener,noreferrer');
+    } else {
+      openSpaceDialog(space);
+    }
+  });
+
+  $('menu-pin-btn').addEventListener('click', async () => {
+    const space = state.spaces.find((s) => s.id === state.activeSpaceMenuId);
+    if (!space) return;
+    const pinned = !space.pinned;
+    const item = {
+      name: space.name,
+      url: space.url,
+      tag: space.tag || '',
+      pinned,
+      order: typeof space.order === 'number' ? space.order : state.spaces.length
+    };
+    await saveEncryptedItem('space', item, space.id);
+    state.spaces = state.spaces.map((s) =>
+      s.id === space.id ? { id: space.id, updatedAt: Date.now(), ...item } : s
+    );
+    $('space-menu').close();
+    renderSpaces();
+    showToast(pinned ? 'Space pinned' : 'Space unpinned');
+  });
+
+  $('menu-edit-btn').addEventListener('click', () => {
+    const space = state.spaces.find((s) => s.id === state.activeSpaceMenuId);
+    $('space-menu').close();
+    if (space) openSpaceDialog(space);
+  });
+
+  $('menu-duplicate-btn').addEventListener('click', async () => {
+    const space = state.spaces.find((s) => s.id === state.activeSpaceMenuId);
+    if (!space) return;
+    const item = {
+      name: `${space.name} (copy)`,
+      url: space.url,
+      tag: space.tag || '',
+      pinned: false,
+      order: state.spaces.length
+    };
+    const id = await saveEncryptedItem('space', item);
+    state.spaces.push({ id, updatedAt: Date.now(), ...item });
+    $('space-menu').close();
+    renderSpaces();
+    showToast('Space duplicated');
+  });
+
+  $('menu-left-btn').addEventListener('click', () => moveActiveSpace(-1));
+  $('menu-right-btn').addEventListener('click', () => moveActiveSpace(1));
+
+  $('menu-delete-btn').addEventListener('click', async () => {
+    const id = state.activeSpaceMenuId;
+    if (!id) return;
+    await deleteItem(id);
+    state.spaces = state.spaces.filter((s) => s.id !== id);
+    $('space-menu').close();
+    renderSpaces();
+    showToast('Space removed');
   });
 
   $('vault-file-input').addEventListener('change', handleVaultUpload);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pocketvault-v4';
+const CACHE_NAME = 'pocketvault-v5';
 const ASSETS = [
   './',
   './index.html',

@@ -65,7 +65,9 @@
             <strong>Settings → Safari → Profiles</strong> and open each space in its own Safari profile.
           </p>
         </details>
-        <div id="spaces-list" class="grid-list"></div>
+        <div id="spaces-chips" class="section-chips" role="tablist" aria-label="Filter spaces by tag" hidden></div>
+        <input id="spaces-search" type="search" class="search-input" placeholder="Search spaces…" aria-label="Search spaces" hidden>
+        <div id="spaces-list" class="tile-grid"></div>
       </section>
 
       <section data-panel="vault" class="panel" hidden>
@@ -138,10 +140,12 @@
       <button type="button" class="tab-btn" data-tab="contacts" role="tab" aria-selected="false">Contacts</button>
       <button type="button" class="tab-btn" data-tab="direct" role="tab" aria-selected="false">Direct</button>
     </nav>
+    <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
   </div>
 
   <dialog id="space-dialog" closedby="any" aria-labelledby="space-dialog-title">
     <form id="space-form" class="stack">
+      <input id="space-id" type="hidden">
       <div class="dialog-header">
         <h1 id="space-dialog-title">Add space</h1>
         <button type="button" class="icon-btn" onclick="this.closest('dialog').close()" aria-label="Close">×</button>
@@ -152,17 +156,38 @@
       </label>
       <label class="field">
         <span>URL</span>
-        <input id="space-url" type="text" inputmode="url" autocapitalize="none" autocorrect="off" placeholder="muse.ai or https://mail.google.com" required>
+        <input id="space-url" type="text" inputmode="url" autocapitalize="none" autocorrect="off" placeholder="mail.google.com" required>
       </label>
       <label class="field">
         <span>Label (optional)</span>
         <input id="space-tag" type="text" placeholder="Work">
       </label>
+      <p id="space-error" class="status-msg error" role="alert" hidden></p>
       <div class="dialog-actions">
         <button type="button" class="btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
         <button type="submit" class="btn-primary">Save</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="space-menu" class="sheet-dialog" closedby="any" aria-labelledby="space-menu-title">
+    <div class="stack">
+      <div class="dialog-header">
+        <h1 id="space-menu-title">Space options</h1>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()" aria-label="Close">×</button>
+      </div>
+      <div class="menu-list">
+        <button id="menu-open-btn" type="button" class="btn-primary menu-item">Open</button>
+        <button id="menu-pin-btn" type="button" class="btn-secondary menu-item">Pin</button>
+        <button id="menu-edit-btn" type="button" class="btn-secondary menu-item">Edit</button>
+        <button id="menu-duplicate-btn" type="button" class="btn-secondary menu-item">Duplicate</button>
+        <div class="menu-row">
+          <button id="menu-left-btn" type="button" class="btn-secondary">Move left</button>
+          <button id="menu-right-btn" type="button" class="btn-secondary">Move right</button>
+        </div>
+        <button id="menu-delete-btn" type="button" class="btn-secondary menu-item danger">Delete</button>
+      </div>
+    </div>
   </dialog>
 
   <dialog id="note-dialog" closedby="any" aria-labelledby="note-dialog-title">
@@ -235,6 +260,12 @@
       <p class="muted">
         All data is encrypted locally with AES-256-GCM before being saved to IndexedDB. Nothing is sent to any server.
       </p>
+      <div class="settings-section">
+        <strong>Ad &amp; tracker blocking on iPhone</strong>
+        <p class="muted">
+          PocketVault strips common tracking parameters (<code>utm_*</code>, <code>fbclid</code>, <code>gclid</code>) and blocks unsafe URL schemes on launch, but a web app cannot block third-party ads or popups inside external sites. For real ad and popup blocking on iPhone, enable a Safari Content Blocker (such as AdGuard, 1Blocker, or Wipr in <strong>Settings → Safari → Extensions</strong>) or use DNS-level filtering (such as NextDNS or AdGuard DNS).
+        </p>
+      </div>
       <button id="export-backup-btn" type="button" class="btn-secondary">Export encrypted backup (.json)</button>
       <button id="wipe-vault-btn" type="button" class="btn-danger">Wipe all local data</button>
       <div class="dialog-actions">
