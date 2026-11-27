@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PocketVault">
+  <title>PocketVault</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main id="lock-screen" class="lock-screen">
+    <section class="lock-card">
+      <img src="./icon.svg" alt="" class="lock-logo" width="64" height="64">
+      <h1 id="lock-title">Unlock PocketVault</h1>
+      <p id="lock-subtitle" class="muted">
+        Your spaces, notes, contacts, and files are encrypted locally on this device.
+      </p>
+      <form id="lock-form" class="stack">
+        <label class="field">
+          <span>Passcode</span>
+          <input id="pin-input" type="password" inputmode="numeric" autocomplete="current-password" minlength="4" required autofocus>
+        </label>
+        <label id="pin-confirm-wrap" class="field" hidden>
+          <span>Confirm passcode</span>
+          <input id="pin-confirm" type="password" inputmode="numeric" autocomplete="new-password" minlength="4">
+        </label>
+        <p id="lock-error" class="status-msg" role="alert" hidden></p>
+        <button id="lock-submit" type="submit" class="btn-primary">Unlock</button>
+      </form>
+    </section>
+  </main>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <img src="./icon.svg" alt="" width="28" height="28">
+        <span>PocketVault</span>
+      </div>
+      <div class="row-actions">
+        <button id="settings-btn" type="button" class="btn-secondary btn-sm">Settings</button>
+        <button id="lock-btn" type="button" class="btn-secondary btn-sm">Lock</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section data-panel="spaces" class="panel">
+        <div class="panel-header">
+          <div>
+            <h1>Spaces</h1>
+            <p class="muted">Quick-launch your web accounts without ads.</p>
+          </div>
+          <button id="add-space-btn" type="button" class="btn-primary btn-sm">Add space</button>
+        </div>
+        <details class="tip-box">
+          <summary>Tip: Separate logins on iPhone</summary>
+          <p class="muted">
+            Safari cannot isolate cookies inside a single webpage. For separate logins on iPhone, create profiles in
+            <strong>Settings → Safari → Profiles</strong> and open each space in its own Safari profile.
+          </p>
+        </details>
+        <div id="spaces-list" class="grid-list"></div>
+      </section>
+
+      <section data-panel="vault" class="panel" hidden>
+        <div class="panel-header">
+          <div>
+            <h1>Vault</h1>
+            <p class="muted">Encrypted photos and files stored locally.</p>
+          </div>
+          <label class="btn-primary btn-sm file-btn">
+            Add files
+            <input id="vault-file-input" type="file" multiple hidden>
+          </label>
+        </div>
+        <div id="vault-list" class="stack-list"></div>
+      </section>
+
+      <section data-panel="notes" class="panel" hidden>
+        <div class="panel-header">
+          <div>
+            <h1>Notes</h1>
+            <p class="muted">Encrypted private notes.</p>
+          </div>
+          <button id="add-note-btn" type="button" class="btn-primary btn-sm">New note</button>
+        </div>
+        <input id="notes-search" type="search" class="search-input" placeholder="Search notes…" aria-label="Search notes">
+        <div id="notes-list" class="stack-list"></div>
+      </section>
+
+      <section data-panel="contacts" class="panel" hidden>
+        <div class="panel-header">
+          <div>
+            <h1>Contacts</h1>
+            <p class="muted">Secondary contacts kept out of iPhone Contacts.</p>
+          </div>
+          <button id="add-contact-btn" type="button" class="btn-primary btn-sm">Add contact</button>
+        </div>
+        <div id="contacts-list" class="stack-list"></div>
+      </section>
+
+      <section data-panel="direct" class="panel" hidden>
+        <div class="panel-header">
+          <div>
+            <h1>Direct Chat</h1>
+            <p class="muted">Message any number without saving it to your contacts.</p>
+          </div>
+        </div>
+        <div class="card stack">
+          <label class="field">
+            <span>Phone number (with country code)</span>
+            <input id="direct-phone" type="tel" inputmode="tel" placeholder="+1 555 123 4567">
+          </label>
+          <label class="field">
+            <span>Message (optional)</span>
+            <textarea id="direct-message" rows="3" placeholder="Hi!"></textarea>
+          </label>
+          <p id="direct-feedback" class="status-msg error" role="alert" hidden></p>
+          <div class="button-row">
+            <button id="direct-wa" type="button" class="btn-primary">WhatsApp</button>
+            <button id="direct-tg" type="button" class="btn-secondary">Telegram</button>
+            <button id="direct-sms" type="button" class="btn-secondary">SMS</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar" role="tablist" aria-label="PocketVault sections">
+      <button type="button" class="tab-btn active" data-tab="spaces" role="tab" aria-selected="true">Spaces</button>
+      <button type="button" class="tab-btn" data-tab="vault" role="tab" aria-selected="false">Vault</button>
+      <button type="button" class="tab-btn" data-tab="notes" role="tab" aria-selected="false">Notes</button>
+      <button type="button" class="tab-btn" data-tab="contacts" role="tab" aria-selected="false">Contacts</button>
+      <button type="button" class="tab-btn" data-tab="direct" role="tab" aria-selected="false">Direct</button>
+    </nav>
+  </div>
+
+  <dialog id="space-dialog" closedby="any" aria-labelledby="space-dialog-title">
+    <form id="space-form" class="stack">
+      <div class="dialog-header">
+        <h1 id="space-dialog-title">Add space</h1>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()" aria-label="Close">×</button>
+      </div>
+      <label class="field">
+        <span>Name</span>
+        <input id="space-name" type="text" placeholder="Work Gmail" required autofocus>
+      </label>
+      <label class="field">
+        <span>URL</span>
+        <input id="space-url" type="url" placeholder="https://mail.google.com" required>
+      </label>
+      <label class="field">
+        <span>Label (optional)</span>
+        <input id="space-tag" type="text" placeholder="Work">
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="note-dialog" closedby="any" aria-labelledby="note-dialog-title">
+    <form id="note-form" class="stack">
+      <input id="note-id" type="hidden">
+      <div class="dialog-header">
+        <h1 id="note-dialog-title">New private note</h1>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()" aria-label="Close">×</button>
+      </div>
+      <label class="field">
+        <span>Title</span>
+        <input id="note-title" type="text" placeholder="Note title" autofocus>
+      </label>
+      <label class="field">
+        <span>Content</span>
+        <textarea id="note-body" rows="6" placeholder="Write something private…"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="contact-dialog" closedby="any" aria-labelledby="contact-dialog-title">
+    <form id="contact-form" class="stack">
+      <div class="dialog-header">
+        <h1 id="contact-dialog-title">Add contact</h1>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()" aria-label="Close">×</button>
+      </div>
+      <label class="field">
+        <span>Name</span>
+        <input id="contact-name" type="text" required autofocus>
+      </label>
+      <label class="field">
+        <span>Phone (with country code)</span>
+        <input id="contact-phone" type="tel" inputmode="tel" placeholder="+1 555 123 4567">
+      </label>
+      <label class="field">
+        <span>Note or handle</span>
+        <input id="contact-note" type="text" placeholder="@handle or context">
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="preview-dialog" closedby="any" aria-labelledby="preview-title">
+    <div class="stack">
+      <div class="dialog-header">
+        <h1 id="preview-title">Preview</h1>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()" aria-label="Close">×</button>
+      </div>
+      <div id="preview-body" class="preview-body"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" onclick="this.closest('dialog').close()">Close</button>
+        <a id="preview-download" class="btn-primary" href="#" download>Download</a>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="settings-dialog" closedby="any" aria-labelledby="settings-title">
+    <div class="stack">
+      <div class="dialog-header">
+        <h1 id="settings-title">Settings</h1>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()" aria-label="Close">×</button>
+      </div>
+      <p class="muted">
+        All data is encrypted locally with AES-256-GCM before being saved to IndexedDB. Nothing is sent to any server.
+      </p>
+      <button id="export-backup-btn" type="button" class="btn-secondary">Export encrypted backup (.json)</button>
+      <button id="wipe-vault-btn" type="button" class="btn-danger">Wipe all local data</button>
+      <div class="dialog-actions">
+        <button type="button" class="btn-primary" onclick="this.closest('dialog').close()">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="wipe-dialog" aria-labelledby="wipe-title">
+    <div class="stack">
+      <h1 id="wipe-title">Wipe all local data?</h1>
+      <p class="muted">This permanently deletes your encrypted vault, notes, contacts, and spaces from this browser.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" onclick="this.closest('dialog').close()" autofocus>Cancel</button>
+        <button id="confirm-wipe-btn" type="button" class="btn-danger">Wipe everything</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
