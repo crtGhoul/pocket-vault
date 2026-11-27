@@ -119,13 +119,13 @@ async function handleUnlockSubmit(e) {
       const verifier = await createVerifier(key);
       await setMeta('salt', Array.from(salt));
       await setMeta('verifier', verifier);
+      state.key = key;
+      state.hasVault = true;
 
       // Seed default spaces on first creation
       for (const space of DEFAULT_SPACES) {
         await saveEncryptedItem('space', space);
       }
-      state.key = key;
-      state.hasVault = true;
     } else {
       const saltArr = await getMeta('salt');
       const verifier = await getMeta('verifier');
@@ -145,6 +145,8 @@ async function handleUnlockSubmit(e) {
     $('app-shell').hidden = false;
     await loadAllData();
     renderAll();
+  } catch (err) {
+    showStatus(err?.message || 'Could not unlock vault.', true);
   } finally {
     $('lock-submit').disabled = false;
   }
